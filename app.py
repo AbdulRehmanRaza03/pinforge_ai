@@ -11,7 +11,6 @@ import uuid
 from datetime import datetime
 
 import streamlit as st
-from passlib.hash import bcrypt
 
 from config import Config
 from database import init_db, get_session
@@ -25,7 +24,7 @@ from scheduler import (
 )
 from utils import (
     ensure_dirs, is_valid_email, validate_image_extension, validate_file_size,
-    hash_content, get_logger,
+    hash_content, get_logger, hash_password, verify_password,
 )
 
 logger = get_logger("app")
@@ -61,7 +60,7 @@ def auth_screen():
         if submitted:
             with get_session() as db:
                 user = db.query(User).filter(User.email == email.strip().lower()).first()
-                if user and bcrypt.verify(password, user.password_hash):
+                if user and verify_password(password, user.password_hash):
                     st.session_state.user_id = user.id
                     st.rerun()
                 else:
@@ -85,7 +84,7 @@ def auth_screen():
                     if db.query(User).filter(User.email == email.strip().lower()).first():
                         st.error("Account already exists with that email.")
                     else:
-                        user = User(email=email.strip().lower(), password_hash=bcrypt.hash(password))
+                        user = User(email=email.strip().lower(), password_hash=hash_password(password))
                         db.add(user)
                         db.flush()
                         st.success("Account created. Please log in.")

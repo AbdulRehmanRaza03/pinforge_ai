@@ -74,3 +74,37 @@ def ensure_dirs():
 
 def is_valid_email(email: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
+
+# --- Password hashing helpers (robust across environments) ---
+try:
+    # Preferred: passlib bcrypt backend
+    from passlib.hash import bcrypt as _pl_bcrypt
+
+    def hash_password(password: str) -> str:
+        return _pl_bcrypt.hash(password)
+
+    def verify_password(password: str, hashed: str) -> bool:
+        return _pl_bcrypt.verify(password, hashed)
+
+except Exception:
+    try:
+        # Fallback to the bcrypt package if passlib backend is unavailable
+        import bcrypt as _pybcrypt
+
+        def hash_password(password: str) -> str:
+            return _pybcrypt.hashpw(password.encode('utf-8'), _pybcrypt.gensalt()).decode('utf-8')
+
+        def verify_password(password: str, hashed: str) -> bool:
+            try:
+                return _pybcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+            except Exception:
+                return False
+
+    except Exception:
+        # Last-resort fallback (not ideal for production): use SHA-256
+        def hash_password(password: str) -> str:
+            return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+        def verify_password(password: str, hashed: str) -> bool:
+            return hashlib.sha256(password.encode('utf-8')).hexdigest() == hashed
