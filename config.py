@@ -1,6 +1,6 @@
 """
 config.py
-Central configuration. ALL secrets come from environment variables (.env).
+Central configuration. ALL secrets come from environment variables (.env) or Streamlit secrets.
 Never hardcode credentials here.
 """
 
@@ -9,10 +9,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Try to import Streamlit secrets for Cloud deployment; fall back to env vars
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
+
+
+def _get_secret(key: str, default: str = "") -> str:
+    """Get value from Streamlit secrets (Cloud) or environment variables (local)."""
+    if HAS_STREAMLIT:
+        try:
+            return st.secrets.get(key, os.getenv(key, default))
+        except Exception:
+            return os.getenv(key, default)
+    return os.getenv(key, default)
+
 
 def _get_int(key: str, default: int) -> int:
     try:
-        return int(os.getenv(key, default))
+        val = _get_secret(key, str(default))
+        return int(val)
     except (TypeError, ValueError):
         return default
 
@@ -20,16 +38,16 @@ def _get_int(key: str, default: int) -> int:
 class Config:
     # --- App ---
     APP_NAME = "PinForge AI"
-    SECRET_KEY = os.getenv("SECRET_KEY", "")
-    ENV = os.getenv("ENV", "development")  # development | production
+    SECRET_KEY = _get_secret("SECRET_KEY", "")
+    ENV = _get_secret("ENV", "development")  # development | production
 
     # --- Database ---
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///pinforge.db")
+    DATABASE_URL = _get_secret("DATABASE_URL", "sqlite:///pinforge.db")
 
     # --- Pinterest OAuth2 (Pinterest API v5) ---
-    PINTEREST_APP_ID = os.getenv("PINTEREST_APP_ID", "")
-    PINTEREST_APP_SECRET = os.getenv("PINTEREST_APP_SECRET", "")
-    PINTEREST_REDIRECT_URI = os.getenv("PINTEREST_REDIRECT_URI", "http://localhost:8501")
+    PINTEREST_APP_ID = _get_secret("PINTEREST_APP_ID", "")
+    PINTEREST_APP_SECRET = _get_secret("PINTEREST_APP_SECRET", "")
+    PINTEREST_REDIRECT_URI = _get_secret("PINTEREST_REDIRECT_URI", "http://localhost:8501")
     PINTEREST_API_BASE = "https://api.pinterest.com/v5"
     PINTEREST_OAUTH_AUTHORIZE_URL = "https://www.pinterest.com/oauth/"
     PINTEREST_OAUTH_TOKEN_URL = "https://api.pinterest.com/v5/oauth/token"
@@ -37,8 +55,8 @@ class Config:
     PINTEREST_SCOPES = "boards:read,boards:write,pins:read,pins:write,user_accounts:read"
 
     # --- AI content generation (Anthropic Claude) ---
-    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-    AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-4-6")
+    ANTHROPIC_API_KEY = _get_secret("ANTHROPIC_API_KEY", "")
+    AI_MODEL = _get_secret("AI_MODEL", "claude-sonnet-4-6")
 
     # --- Safety / Rate limiting (HARD CAPS, do not bypass) ---
     MAX_PINS_PER_ACCOUNT_PER_DAY = min(_get_int("MAX_PINS_PER_ACCOUNT_PER_DAY", 15), 15)
@@ -52,8 +70,8 @@ class Config:
     MAX_UPLOAD_MB = 20
 
     # --- Storage ---
-    UPLOAD_DIR = os.getenv("UPLOAD_DIR", "static/uploads")
-    PROCESSED_DIR = os.getenv("PROCESSED_DIR", "static/processed")
+    UPLOAD_DIR = _get_secret("UPLOAD_DIR", "static/uploads")
+    PROCESSED_DIR = _get_secret("PROCESSED_DIR", "static/processed")
 
     @classmethod
     def validate(cls) -> list:
