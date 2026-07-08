@@ -4,6 +4,7 @@ Run: uvicorn main:app --reload --port 8000
 """
 
 import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,18 +17,27 @@ from routers import accounts, pins, analytics, settings_router
 from services import scheduler_service
 
 
+# Base directory of backend
+BASE_DIR = Path(__file__).resolve().parent
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     missing = settings.missing()
     if missing:
         print(f"[WARNING] Missing env vars: {', '.join(missing)}")
+
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs(settings.PROCESSED_DIR, exist_ok=True)
+
     init_db()
     scheduler_service.start()
+
     print(f"[PinForge AI] Backend running — ENV={settings.ENV}")
+
     yield
+
     # Shutdown
     scheduler_service.stop()
 
@@ -48,8 +58,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files (processed images served from backend)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Ensure static directory exists
+STATIC_DIR = BASE_DIR / "static"
+STATIC_DIR.mkdir(exist_ok=True)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Routers
 app.include_router(accounts.router)
@@ -60,4 +74,7 @@ app.include_router(settings_router.router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "app": settings.APP_NAME}
+    return {
+        "status": "ok",
+        "app": settings.APP_NAME,
+    }
